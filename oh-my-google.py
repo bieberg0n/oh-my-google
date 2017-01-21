@@ -14,7 +14,7 @@ serv_q = queue.Queue()
 
 p = re.compile('onmousedown="return rwt.+?"')
 pp = re.compile('onmousedown.+?return rwt\(.+?\).....')
-host_p = re.compile('http://.+?/')
+host_p = re.compile('https*://.+?/')
 
 
 def get_google():
@@ -61,8 +61,8 @@ def google():
     return cli_q.get()
 
 
-def main(host, port, debug=False):
-    app.run(host=host, port=port, debug=debug)
+def main(host, port, debug=False, ssl_file=None):
+    app.run(host=host, port=port, debug=debug, ssl_context=ssl_file)
 
 
 if __name__ == '__main__':
@@ -72,4 +72,10 @@ if __name__ == '__main__':
     if cfg['proxy']:
         s.proxies = {'http': 'socks5://192.168.1.1:1080',
                      'https': 'socks5://192.168.1.1:1080'}
-    main(cfg['listen_ip'], cfg['listen_port'], cfg['debug'])
+    if cfg['ssl']:
+        if cfg['keyfile']:
+            ssl_file = (cfg['certfile'], cfg['keyfile'])
+        else:
+            ssl_file = 'adhoc'
+
+    main(cfg['listen_ip'], cfg['listen_port'], cfg['debug'], ssl_file)

@@ -1,6 +1,9 @@
 {
     "listen_ip":"127.0.0.1",
     "listen_port":5000,
+    "ssl":true,
+    "keyfile":"",
+    "certfile":"",
     "debug":true,
     "proxy":true
 }
