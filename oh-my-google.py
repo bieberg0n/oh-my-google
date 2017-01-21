@@ -62,13 +62,13 @@ def google():
 
 
 def main(host, port, debug=False, ssl_file=None):
-    app.run(host=host, port=port, debug=debug, ssl_context=ssl_file)
+    app.run(host=host, port=port, debug=debug,
+            ssl_context=ssl_file, threaded=True)
 
 
 if __name__ == '__main__':
     with open('oh-my-google.json') as f:
         cfg = json.loads(f.read())
-    threading.Thread(target=get_google).start()
     if cfg['proxy']:
         s.proxies = {'http': 'socks5://192.168.1.1:1080',
                      'https': 'socks5://192.168.1.1:1080'}
@@ -78,4 +78,5 @@ if __name__ == '__main__':
         else:
             ssl_file = 'adhoc'
 
+    threading.Thread(target=get_google).start()
     main(cfg['listen_ip'], cfg['listen_port'], cfg['debug'], ssl_file)
