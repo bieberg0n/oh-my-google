@@ -20,7 +20,7 @@ host_p = re.compile('https*://.+?/')
 def get_google():
     while True:
         url, headers, cli_q = serv_q.get()
-        print(url)
+        # print(url)
         # print(s.headers)
         # s.headers = headers
         # print(s.headers)
