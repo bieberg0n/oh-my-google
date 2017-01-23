@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# coding=utf-8
+
 import queue
 import requests
 import threading
@@ -24,7 +27,10 @@ def get_google():
         # print(s.headers)
         # s.headers = headers
         # print(s.headers)
-        resp = s.get('https://www.google.com.hk/{}'.format(url), headers=headers).content
+        try:
+            resp = s.get('https://www.google.com.hk/{}'.format(url), headers=headers).content
+        except requests.exceptions.ConnectionError:
+            resp = b''
         if b'onmouse' in resp:
             resp = resp.decode()
             resp = p.sub('',resp)
