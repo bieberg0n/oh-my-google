@@ -32,7 +32,7 @@ def get_google():
         except requests.exceptions.ConnectionError:
             resp = b''
         if b'onmouse' in resp:
-            resp = resp.decode()
+            resp = resp.decode('utf-8', errors='ignore')
             resp = p.sub('',resp)
             resp = pp.sub('',resp).encode()
         cli_q.put(resp)
