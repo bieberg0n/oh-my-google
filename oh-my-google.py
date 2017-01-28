@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
+from gevent import monkey, spawn
+monkey.patch_socket()
+monkey.patch_ssl()
 import queue
 import requests
 import threading
@@ -8,6 +11,7 @@ import re
 import json
 # import socks
 from flask import Flask, request
+from gevent.wsgi import WSGIServer
 
 app = Flask(__name__)
 s = requests.session()
@@ -68,8 +72,12 @@ def google():
 
 
 def main(host, port, debug=False, ssl_file=None):
-    app.run(host=host, port=port, debug=debug,
-            ssl_context=ssl_file, threaded=True)
+    if debug:
+        app.run(host=host, port=port, debug=debug,
+                ssl_context=ssl_file, threaded=True)
+    else:
+        certfile, keyfile = ssl_file
+        WSGIServer((host, port), keyfile=keyfile, certfile=certfile).serve_forever()
 
 
 if __name__ == '__main__':
@@ -84,5 +92,6 @@ if __name__ == '__main__':
         else:
             ssl_file = 'adhoc'
 
-    threading.Thread(target=get_google).start()
+    # threading.Thread(target=get_google).start()
+    spawn(get_google)
     main(cfg['listen_ip'], cfg['listen_port'], cfg['debug'], ssl_file)
