@@ -4,7 +4,7 @@
 from gevent import monkey, spawn
 monkey.patch_socket()
 monkey.patch_ssl()
-import queue
+import gevent.queue as queue
 import requests
 import threading
 import re
@@ -47,7 +47,10 @@ def get_headers(request):
     # print(type(request.headers))
     headers = {key: request.headers[key] for key in request.headers.keys()}
     # get_headers(request.headers)
-    del headers['Host'], headers['Content-Length']
+    # print(headers)
+    del headers['Host']
+    if headers.get('Content-Length'):
+        headers['Content-Length']
     # print(headers)
     return url, headers
 
@@ -77,7 +80,7 @@ def main(host, port, debug=False, ssl_file=None):
                 ssl_context=ssl_file, threaded=True)
     else:
         certfile, keyfile = ssl_file
-        WSGIServer((host, port), keyfile=keyfile, certfile=certfile).serve_forever()
+        WSGIServer((host, port), app, keyfile=keyfile, certfile=certfile).serve_forever()
 
 
 if __name__ == '__main__':
