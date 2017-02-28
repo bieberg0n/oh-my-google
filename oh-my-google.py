@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
-from gevent import monkey, spawn, queue
+from gevent import monkey, spawn, queue, socket
 monkey.patch_socket()
 monkey.patch_ssl()
 import gevent.queue as queue
 import requests
-import threading
+# import threading
 import re
 import json
 # import socks
@@ -41,12 +41,18 @@ def get_google():
         # s.headers = headers
         # print(s.headers)
         try:
-            resp = s.get('https://www.google.com.hk{}'.format(url), headers=headers, timeout=3)
-            print(resp.status_code)
+            print('requests start')
+            status_code = 503
+            resp = None
+            while status_code == 503:
+                resp = s.get('https://www.google.com.hk{}'.format(url), headers=headers, timeout=3)
+                print(resp.status_code)
+                status_code = resp.status_code
             # resp_headers_str = resp_headers_str.replace('gzip', '')\
             #                                    .replace('chunked', '')\
             #                                    .encode()
-        except requests.exceptions.ConnectionError:
+        # except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, socket.timeout):
+        except:
             cli_q.put(b'')
             continue
         resp_body = resp.content
@@ -64,9 +70,18 @@ def get_google():
 def get_headers_raw(conn):
     headers_raw = ''
     # for buf in iter(lambda: conn.recv(1), b''):
-    while not headers_raw.endswith('\r\n\r\n'):
-        buf = conn.recv(1)
+    # conn.settimeout(2)
+    # while not headers_raw.endswith('\r\n\r\n'):
+    # while not '\r\n\r\n' in headers_raw:
+    for buf in iter(lambda: conn.recv(512), b''):
+        # buf = conn.recv(512)
+        # if not buf:
+        #     break
+        print(buf)
         headers_raw += buf.decode('utf-8', errors='ignore')
+        if '\r\n\r\n' in headers_raw:
+            break
+    headers_raw = re.sub('\r\n\r\n.+', '\r\n\r\n', headers_raw)
     return headers_raw
 
 
@@ -92,7 +107,7 @@ def get_headers(conn):
 
 
 def handle(conn_cli, addr_cli):
-    # print(addr_cli)
+    print(addr_cli)
     headers_dict = get_headers(conn_cli)
     # print(headers_dict)
     if not headers_dict['method'] == 'GET':
