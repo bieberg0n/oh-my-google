@@ -9,9 +9,11 @@ import requests
 import re
 import json
 from gevent.server import StreamServer
+import logging
 
 s = requests.session()
 serv_q = queue.Queue()
+logging.basicConfig(level=logging.DEBUG)
 
 
 p = re.compile('onmousedown="return rwt.+?"')
@@ -29,14 +31,14 @@ def get_headers_str(resp):
 def get_google():
     while True:
         url, headers, cli_q = serv_q.get()
-        print(url)
+        logging.debug(url)
         try:
-            print('requests start')
+            logging.debug('requests start')
             status_code = 503
             resp = None
             while status_code == 503:
                 resp = s.get('https://www.google.com.hk{}'.format(url), headers=headers, timeout=3)
-                print(resp.status_code)
+                logging.debug(resp.status_code)
                 status_code = resp.status_code
         # except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, socket.timeout):
         except:
@@ -57,7 +59,7 @@ def get_google():
 def get_headers_raw(conn):
     headers_raw = ''
     for buf in iter(lambda: conn.recv(512), b''):
-        print(buf)
+        logging.debug(buf)
         headers_raw += buf.decode('utf-8', errors='ignore')
         if '\r\n\r\n' in headers_raw:
             break
@@ -81,7 +83,7 @@ def get_headers(conn):
 
 
 def handle(conn_cli, addr_cli):
-    print(addr_cli)
+    logging.debug(addr_cli)
     headers_dict = get_headers(conn_cli)
     if not headers_dict['method'] == 'GET':
         return
