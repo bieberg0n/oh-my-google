@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
-from gevent import monkey, spawn, queue  #, socket
+from gevent import monkey, spawn, queue, socket
 monkey.patch_socket()
 monkey.patch_ssl()
 import gevent.queue as queue
@@ -10,6 +10,7 @@ import re
 import json
 from gevent.server import StreamServer
 import logging
+import pprint
 
 s = requests.session()
 serv_q = queue.Queue()
@@ -21,6 +22,10 @@ pp = re.compile('onmousedown.+?return rwt\(.+?\).....')
 host_p = re.compile('https*://.+?/')
 
 
+def log(msg):
+    pprint.pprint(msg)
+
+
 def get_headers_str(resp):
     headers_list = [key + ': ' + value for key, value in resp.headers.items()]
     headers_head = 'HTTP/1.1 ' + str(resp.status_code) + ' OK'
@@ -28,24 +33,30 @@ def get_headers_str(resp):
     return headers_str
 
 
-def get_google():
+def google(host=None):
+    if host:
+        pass
+    else:
+        host = 'https://www.google.com.hk'
+
     while True:
-        url, headers, cli_q = serv_q.get()
-        logging.debug(url)
+        path, headers, cli_q = serv_q.get()
+        log(path)
         try:
-            logging.debug('requests start')
+            log('requests start')
             status_code = 503
             resp = None
             while status_code == 503:
-                resp = s.get('https://www.google.com.hk{}'.format(url), headers=headers, timeout=3)
-                logging.debug(resp.status_code)
+                resp = s.get('{}{}'.format(host, path), headers=headers, timeout=7)
+                log(resp.status_code)
                 status_code = resp.status_code
-        # except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, socket.timeout):
-        except:
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, socket.timeout) as e:
+        # except:
+            # log('error')
+            log(e)
             cli_q.put(b'')
             continue
         resp_body = resp.content
-        # print(resp.headers)
         resp_headers_str = get_headers_str(resp).replace('gzip', '')\
                                                 .replace('chunked', '')\
                                                 .encode()
@@ -56,10 +67,10 @@ def get_google():
         cli_q.put(resp_headers_str + b'\r\n\r\n' + resp_body)
 
 
-def get_headers_raw(conn):
+def headers_raw_from_socket(conn):
     headers_raw = ''
     for buf in iter(lambda: conn.recv(512), b''):
-        logging.debug(buf)
+        # logging.debug(buf)
         headers_raw += buf.decode('utf-8', errors='ignore')
         if '\r\n\r\n' in headers_raw:
             break
@@ -67,8 +78,8 @@ def get_headers_raw(conn):
     return headers_raw
 
 
-def get_headers(conn):
-    headers_raw = get_headers_raw(conn)
+def headers_from_socket(conn):
+    headers_raw = headers_raw_from_socket(conn)
     headers_dict = dict()
     headers_lines = headers_raw.split('\r\n')
     headers_head = headers_lines[0]
@@ -82,44 +93,54 @@ def get_headers(conn):
     return headers_dict
 
 
-def handle(conn_cli, addr_cli):
-    logging.debug(addr_cli)
-    headers_dict = get_headers(conn_cli)
-    if not headers_dict['method'] == 'GET':
-        return
-    else:
-        host = headers_dict['Host']
-        path = headers_dict['path']
-        del headers_dict['Host']
-        cli_q = queue.Queue()
-        serv_q.put((path, headers_dict, cli_q))
-        resp = cli_q.get()
-        resp = resp.replace(b'www.google.com.hk', host.encode())
-        conn_cli.sendall(resp)
+def handle(client, client_addr, host=None):
+    log(client_addr)
+    headers = headers_from_socket(client)
+    # if not headers['method'] == 'GET':
+    #     return
+    # else:
+    host = headers['Host']
+    path = headers['path']
+    del headers['Host']
+
+    log('获取Headers')
+    log(headers)
+
+    cli_q = queue.Queue()
+    serv_q.put((path, headers, cli_q))
+    resp = cli_q.get()
+    resp = resp.replace(b'www.google.com.hk', host.encode())
+
+    # log('得到返回')
+    # log(resp)
+
+    client.sendall(resp)
 
 
-def main(host, port, ssl_file=None):
+def start_serv(listen_ip, port, ssl_file=None, host=None):
     if ssl_file:
         certfile, keyfile = ssl_file
-        StreamServer((host, port), handle=handle, keyfile=keyfile, certfile=certfile).serve_forever()
+        StreamServer((listen_ip, port), handle=handle, keyfile=keyfile, certfile=certfile).serve_forever()
     else:
-        StreamServer((host, port), handle=handle).serve_forever()
+        _handle = lambda c, c_addr: handle(c, c_addr, host)
+        StreamServer((listen_ip, port), handle=_handle).serve_forever()
 
 
 if __name__ == '__main__':
     with open('oh-my-google.json') as f:
         cfg = json.loads(f.read())
+
     if cfg['proxy']:
         s.proxies = {'http': 'socks5://192.168.233.2:1080',
                      'https': 'socks5://192.168.233.2:1080'}
     if cfg['ssl']:
-        # if cfg['keyfile']:
         ssl_file = (cfg['certfile'], cfg['keyfile'])
-        # else:
-        #     ssl_file = 'adhoc'
     else:
         ssl_file = None
+    if cfg['host']:
+        host = cfg['host']
+    else:
+        host = None
 
-    # threading.Thread(target=get_google).start()
-    spawn(get_google)
-    main(cfg['listen_ip'], cfg['listen_port'], ssl_file)
+    spawn(google, host)
+    start_serv(cfg['listen_ip'], cfg['listen_port'], ssl_file, host)
