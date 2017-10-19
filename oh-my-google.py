@@ -2,8 +2,8 @@
 # coding=utf-8
 
 from gevent import monkey, spawn, queue  #, socket
-monkey.patch_socket()
-monkey.patch_ssl()
+# monkey.patch_socket()
+# monkey.patch_ssl()
 import gevent.queue as queue
 import requests
 import re
@@ -32,18 +32,21 @@ def get_google():
     while True:
         url, headers, cli_q = serv_q.get()
         logging.debug(url)
+        logging.debug('requests start')
+        status_code = 503
+        resp = None
+            # while status_code == 503:
         try:
-            logging.debug('requests start')
-            status_code = 503
-            resp = None
-            while status_code == 503:
-                resp = s.get('https://www.google.com.hk{}'.format(url), headers=headers, timeout=3)
-                logging.debug(resp.status_code)
-                status_code = resp.status_code
-        # except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, socket.timeout):
-        except:
+            resp = s.get('https://www.google.com.sg{}'.format(url), headers=headers, timeout=3)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError, requests.exceptions.ReadTimeout,
+                requests.exceptions.ContentDecodingError, requests.exceptions.InvalidHeader) as e:
+            logging.info(e)
             cli_q.put(b'')
             continue
+        logging.debug(resp.status_code)
+        status_code = resp.status_code
+        # except:
         resp_body = resp.content
         # print(resp.headers)
         resp_headers_str = get_headers_str(resp).replace('gzip', '')\
@@ -94,7 +97,7 @@ def handle(conn_cli, addr_cli):
         cli_q = queue.Queue()
         serv_q.put((path, headers_dict, cli_q))
         resp = cli_q.get()
-        resp = resp.replace(b'www.google.com.hk', host.encode())
+        resp = resp.replace(b'www.google.com.sg', host.encode())
         conn_cli.sendall(resp)
 
 
@@ -110,8 +113,8 @@ if __name__ == '__main__':
     with open('oh-my-google.json') as f:
         cfg = json.loads(f.read())
     if cfg['proxy']:
-        s.proxies = {'http': 'socks5://192.168.233.2:1080',
-                     'https': 'socks5://192.168.233.2:1080'}
+        s.proxies = {'http': 'socks5://127.0.0.1:1080',
+                     'https': 'socks5://127.0.0.1:1080'}
     if cfg['ssl']:
         # if cfg['keyfile']:
         ssl_file = (cfg['certfile'], cfg['keyfile'])
