@@ -10,7 +10,7 @@ import logging
 from pprint import pprint
 import geventsocks
 
-GOOGLE_HOST = 'www.google.com'
+GOOGLE_HOST = '//github.com/'
 PROXY_ADDR = ('127.0.0.1', 1080)
 
 
@@ -47,7 +47,8 @@ def headers_by_str(str_headers):
         pass
     for line in headers_lines[1:]:
         if line:
-            key, value = line.split(': ')
+            log(line)
+            key, value = line.split(': ')[:2]
             headers['args'][key] = value
         else:
             pass
@@ -62,7 +63,7 @@ def headers_by_conn(conn):
     else:
         headers = headers_by_str(str_headers)
         if headers['method'] == 'POST':
-            headers['body'] = conn.recv(int(headers['args']['Content-Length']))
+            headers['body'] = conn.recv(int(headers['args']['Content-Length'])).decode()
     return headers
 
 
@@ -134,7 +135,7 @@ def response_by_conn(conn):
         sh = sh.replace('chunked', '')
         # sh = sh.replace('Transfer-Encoding: chunked',
         #                 'Content-Length: {}\r\nAccept-Encoding: identity'.format(len(resp_body)))
-        sh = sh.replace('gzip', 'identity')
+        # sh = sh.replace('gzip', 'identity')
     else:
         content_length = int(h['args'].get('Content-Length'))
         for buf in iter(lambda: conn.recv(1024*16), b''):
@@ -156,12 +157,12 @@ def request(s, headers):
     log('发送 data 给 google', req_data)
     s.sendall(req_data.encode())
 
-    _resp = response_by_conn(s)
+    resp = response_by_conn(s)
     log('接收data')
     # if b'onmouse' in resp:
     #     resp = p.sub(b'', resp)
     #     resp = pp.sub(b'',resp)
-    resp = _resp.replace(GOOGLE_HOST.encode(), host.encode())
+    resp = resp.replace(GOOGLE_HOST.encode(), '//{}/'.format(host).encode())
     return resp
 
 
