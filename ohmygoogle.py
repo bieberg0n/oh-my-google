@@ -19,8 +19,8 @@ pp = re.compile(b'onmousedown.+?return rwt\(.+?\).....')
 
 
 def log(*args, **kwargs):
-    # print(*args)
-    [pprint(arg) for arg in args]
+    print(*args)
+    # [pprint(arg) for arg in args]
 
 
 def get_headers_raw(conn):
@@ -35,12 +35,16 @@ def get_headers_raw(conn):
 
 
 def headers_by_str(str_headers):
+    '''string格式的headers转成dict'''
     headers = dict(
         args={}
     )
     headers_lines = str_headers.split('\r\n')
-    headers_head = headers_lines[0]
-    headers['method'], headers['path'], _ = headers_head.split(' ')
+    headers_head = headers_lines[0].split(' ')
+    if len(headers_head) >= 2:
+        headers['method'], headers['path'] = headers_head[:2]
+    else:
+        pass
     for line in headers_lines[1:]:
         if line:
             key, value = line.split(': ')
@@ -63,7 +67,7 @@ def headers_by_conn(conn):
 
 
 def str_headers(headers):
-    # custom_key = ['method', 'path']
+    '''header 转成 string 格式'''
     first_line = '{} {} HTTP/1.1\r\n'.format(headers['method'],
                                              headers['path'])
     other_line = ''.join(['{}: {}\r\n'.format(k, w)
@@ -71,39 +75,93 @@ def str_headers(headers):
     return first_line + other_line + '\r\n'
 
 
-def response_by_conn(conn):
-    sh = b''
-    # while len(sh) <= 4 or sh[-4:] != ['\r', '\n', '\r', '\n']:
-    #     char = conn.recv(1).decode()
-    #     sh.append(char)
-    # log(''.join(sh))
-
-    # while (not sh.endswith(b'0\r\n\r\n')) and buf:
-    for buf in iter(lambda: conn.recv(1024*16), b''):
-        # length = int(conn.recv(4).decode())
+def chunked_length(conn):
+    data = b''
+    for buf in iter(lambda: conn.recv(1), b''):
         # log(buf)
-        # sh.append(buf)
-        sh += buf
-        if sh.endswith(b'\r\n\r\n'):
+        data += buf
+        if data.endswith(b'\r\n'):
             break
+    _length = data.rstrip(b'\r\n')
+    if _length:
+        length = int(_length, 16)
+        # log(length)
+        return length
+    else:
+        return 0
+
+
+def recv(conn, length):
+    data = b''
+    while length > 0:
+        buf = conn.recv(length)
+        if buf:
+            data += buf
+            length -= len(buf)
+        else:
+            break
+    # log('实际长度', len(data))
+    return data
+
+
+def response_by_chunked(conn):
+    data = b''
+    while True:
+        ck_length = chunked_length(conn)
+        if ck_length:
+            data += recv(conn, ck_length+2)
+        else:
+            break
+    return data
+
+
+def response_by_conn(conn):
+    '''从 conn 获取 response'''
+    # 获取headers
+    sh = []
+    while len(sh) <= 4 or sh[-4:] != ['\r', '\n', '\r', '\n']:
+        char = conn.recv(1).decode()
+        sh.append(char)
+    sh = ''.join(sh)
+    h = headers_by_str(sh)
+    log('resp headers: ', h['args'])
+
+    # 获取body
+    transfer_encoding = h['args'].get('Transfer-Encoding')
+    resp_body = b''
+    if transfer_encoding == 'chunked':
+        resp_body = response_by_chunked(conn)
+        sh = sh.replace('chunked', '')
+        # sh = sh.replace('Transfer-Encoding: chunked',
+        #                 'Content-Length: {}\r\nAccept-Encoding: identity'.format(len(resp_body)))
+        sh = sh.replace('gzip', 'identity')
+    else:
+        content_length = int(h['args'].get('Content-Length'))
+        for buf in iter(lambda: conn.recv(1024*16), b''):
+            resp_body += buf
+            if len(resp_body) >= content_length:
+                break
 
     # return b''.join(sh)
-    return sh
+    return sh.encode() + resp_body
 
 
 def request(s, headers):
-    headers['args']['Accept-Encoding'] = ''
-    headers['args']['Host'] = GOOGLE_HOST
+    host = headers['args']['Host']
+    headers['args']['Accept-Encoding'] = 'identity'
     sh = str_headers(headers)
     req_body = headers.get('body')
-    req_data = sh + req_body if req_body else sh
-    log('发送data给google', req_data)
+    _req_data = sh + req_body if req_body else sh
+    req_data = _req_data.replace(host, GOOGLE_HOST)
+    log('发送 data 给 google', req_data)
     s.sendall(req_data.encode())
-    resp = response_by_conn(s)
+
+    _resp = response_by_conn(s)
     log('接收data')
     # if b'onmouse' in resp:
     #     resp = p.sub(b'', resp)
     #     resp = pp.sub(b'',resp)
+    resp = _resp.replace(GOOGLE_HOST.encode(), host.encode())
     return resp
 
 
@@ -120,8 +178,6 @@ def request(s, headers):
 
 def handle(client, cli_addr):
     '''处理客户端请求'''
-    proxy_addr = ('127.0.0.1', 1080)
-
     log(cli_addr)
 
     _s = socket.socket()
@@ -135,14 +191,13 @@ def handle(client, cli_addr):
             return
         else:
             log(headers)
-            host, _ = headers['args']['Host'], headers['path']
+            # host, _ = headers['args']['Host'], headers['path']
             # 发送headers到google
             r = request(s, headers)
-            r.replace(GOOGLE_HOST.encode(), host.encode())
-            log(r[:1024])
+            log('r大小', len(r), r[:1024])
             client.sendall(r)
-            s.close()
-            client.close()
+            # s.close()
+            # client.close()
             break
 
 

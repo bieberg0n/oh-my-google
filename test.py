@@ -35,6 +35,12 @@ def test_headers_by_str():
     ensure(good_h2 == h2, 'headers str to dict error.')
 
 
+def test_response_by_conn():
+    data = 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: 86400\r\n\r\n'
+    print(ohmygoogle.headers_by_str(data))
+
+
+
 def test_headers_by_conn():
     s = socket.socket()
     s.bind(('127.0.0.1', 8080))
@@ -42,5 +48,10 @@ def test_headers_by_conn():
     # TODO
 
 
+def test_chunked_length():
+    pass
+
+
 if __name__ == '__main__':
-    test_headers_by_str()
+    # test_headers_by_str()
+    test_response_by_conn()
