@@ -10,7 +10,7 @@ import logging
 from pprint import pprint
 import geventsocks
 
-GOOGLE_HOST = '//github.com/'
+GOOGLE_HOST = 'www.google.com'
 PROXY_ADDR = ('127.0.0.1', 1080)
 
 
@@ -19,8 +19,10 @@ pp = re.compile(b'onmousedown.+?return rwt\(.+?\).....')
 
 
 def log(*args, **kwargs):
-    print(*args)
-    # [pprint(arg) for arg in args]
+    if len(args) == 1:
+        pprint(args[0])
+    else:
+        print(*args)
 
 
 def get_headers_raw(conn):
@@ -102,7 +104,7 @@ def recv(conn, length):
         else:
             break
     # log('实际长度', len(data))
-    return data
+    return data.rstrip(b'\r\n')
 
 
 def response_by_chunked(conn):
@@ -162,7 +164,7 @@ def request(s, headers):
     # if b'onmouse' in resp:
     #     resp = p.sub(b'', resp)
     #     resp = pp.sub(b'',resp)
-    resp = resp.replace(GOOGLE_HOST.encode(), '//{}/'.format(host).encode())
+    resp = resp.replace(GOOGLE_HOST.encode(), '{}'.format(host).encode())
     return resp
 
 
@@ -188,13 +190,15 @@ def handle(client, cli_addr):
     while True:
         # 获取客户端请求
         headers = headers_by_conn(client)
-        if not headers:
+        if not headers or headers['method'] != 'GET':
             return
         else:
             log(headers)
             # host, _ = headers['args']['Host'], headers['path']
             # 发送headers到google
             r = request(s, headers)
+            r = p.sub(b'', r)
+            r = pp.sub(b'', r)
             log('r大小', len(r), r[:1024])
             client.sendall(r)
             # s.close()
@@ -214,7 +218,7 @@ def main(host, port, ssl_file=None):
 if __name__ == '__main__':
     with open('oh-my-google.json') as f:
         cfg = json.loads(f.read())
-    log('Config:', cfg)
+    log(cfg)
     if cfg['proxy']:
         geventsocks.set_default_proxy(*PROXY_ADDR)
         # s.proxies = {'http': 'socks5://127.0.0.1:1080',
