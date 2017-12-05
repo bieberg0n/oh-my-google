@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
-from gevent import spawn, queue, socket, ssl# monkey,
-import requests
+from gevent import socket, ssl  # spawn, queue,   # monkey,
+# import requests
 import re
 import json
 from gevent.server import StreamServer
-import logging
+# import logging
 from pprint import pprint
 import geventsocks
 
@@ -65,7 +65,8 @@ def headers_by_conn(conn):
     else:
         headers = headers_by_str(str_headers)
         if headers['method'] == 'POST':
-            headers['body'] = conn.recv(int(headers['args']['Content-Length'])).decode()
+            content_len = int(headers['args']['Content-Length'])
+            headers['body'] = conn.recv(content_len).decode()
     return headers
 
 
@@ -136,7 +137,8 @@ def response_by_conn(conn):
         resp_body = response_by_chunked(conn)
         sh = sh.replace('chunked', '')
         # sh = sh.replace('Transfer-Encoding: chunked',
-        #                 'Content-Length: {}\r\nAccept-Encoding: identity'.format(len(resp_body)))
+        #                 'Content-Length: {}\r\nAccept-Encoding: identity'\
+        # .format(len(resp_body)))
         # sh = sh.replace('gzip', 'identity')
     else:
         content_length = int(h['args'].get('Content-Length'))
@@ -179,6 +181,21 @@ def request(s, headers):
 #         size1, size2 = size2, size2 + 1024
 
 
+def add_newwindow(headers):
+    path = headers['path']
+    if path.startswith('/search') and 'newwindow' not in path:
+        new_path = path.replace('?', '?newwindow=1&')
+        headers['path'] = new_path
+    return headers
+
+
+
+def rm_redirect(r):
+    r = p.sub(b'', r)
+    r = pp.sub(b'', r)
+    return r
+
+
 def handle(client, cli_addr):
     '''处理客户端请求'''
     log(cli_addr)
@@ -193,12 +210,12 @@ def handle(client, cli_addr):
         if not headers or headers['method'] != 'GET':
             return
         else:
+            headers = add_newwindow(headers)
             log(headers)
             # host, _ = headers['args']['Host'], headers['path']
             # 发送headers到google
-            r = request(s, headers)
-            r = p.sub(b'', r)
-            r = pp.sub(b'', r)
+            r_raw = request(s, headers)
+            r = rm_redirect(r_raw)
             log('r大小', len(r), r[:1024])
             client.sendall(r)
             # s.close()
