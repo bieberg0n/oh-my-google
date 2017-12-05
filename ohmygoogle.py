@@ -2,7 +2,7 @@
 # coding=utf-8
 
 from gevent import socket, ssl  # spawn, queue,   # monkey,
-# import requests
+import time
 import re
 import json
 from gevent.server import StreamServer
@@ -22,15 +22,22 @@ def log(*args, **kwargs):
     if len(args) == 1:
         pprint(args[0])
     else:
-        print(*args)
+        print(time.strftime('%Y-%m-%d %H:%M:%S'), *args)
 
 
-def get_headers_raw(conn):
+def connect_google():
+    _s = socket.socket()
+    geventsocks.connect(_s, (GOOGLE_HOST, 443))
+    s = ssl.wrap_socket(_s)
+    return s
+
+
+def headers_raw(conn):
     headers_raw = ''
-    for buf in iter(lambda: conn.recv(1), b''):
-        headers_raw += buf.decode('utf-8', errors='ignore')
-        # if '\r\n\r\n' in headers_raw:
-        if headers_raw.endswith('\r\n\r\n'):
+    for buf in iter(lambda: conn.recv(1024), b''):
+        headers_raw += buf.decode('utf-8')  # , errors='ignore')
+        # if headers_raw.endswith('\r\n\r\n'):
+        if '\r\n\r\n' in headers_raw:
             break
     # headers_raw = re.sub('\r\n\r\n.+', '\r\n\r\n', headers_raw)
     return headers_raw
@@ -49,7 +56,7 @@ def headers_by_str(str_headers):
         pass
     for line in headers_lines[1:]:
         if line:
-            log(line)
+            # log(line)
             key, value = line.split(': ')[:2]
             headers['args'][key] = value
         else:
@@ -59,14 +66,16 @@ def headers_by_str(str_headers):
 
 def headers_by_conn(conn):
     '''在conn中获取headers并转成dict'''
-    str_headers = get_headers_raw(conn)
+    str_headers = headers_raw(conn)
     if not str_headers:
         return
     else:
         headers = headers_by_str(str_headers)
         if headers['method'] == 'POST':
             content_len = int(headers['args']['Content-Length'])
-            headers['body'] = conn.recv(content_len).decode()
+            current_len = len(str_headers.split('\r\n\r\n')[1])
+            need_recv_len = content_len - current_len
+            headers['body'] = conn.recv(need_recv_len).decode()
     return headers
 
 
@@ -128,7 +137,7 @@ def response_by_conn(conn):
         sh.append(char)
     sh = ''.join(sh)
     h = headers_by_str(sh)
-    log('resp headers: ', h['args'])
+    # log('resp headers: ', h['args'])
 
     # 获取body
     transfer_encoding = h['args'].get('Transfer-Encoding')
@@ -158,27 +167,13 @@ def request(s, headers):
     req_body = headers.get('body')
     _req_data = sh + req_body if req_body else sh
     req_data = _req_data.replace(host, GOOGLE_HOST)
-    log('发送 data 给 google', req_data)
+    # log('发送 data 给 google'), req_data)
     s.sendall(req_data.encode())
 
     resp = response_by_conn(s)
-    log('接收data')
-    # if b'onmouse' in resp:
-    #     resp = p.sub(b'', resp)
-    #     resp = pp.sub(b'',resp)
+    # log('接收data')
     resp = resp.replace(GOOGLE_HOST.encode(), '{}'.format(host).encode())
     return resp
-
-
-# def sendall(client, data):
-#     size1, size2 = 0, 1024
-#     while True:
-#         if size2 > len(data):
-#             client.sendall(data[size1:])
-#             break
-#         else:
-#             client.sendall(data[size1:size2])
-#         size1, size2 = size2, size2 + 1024
 
 
 def add_newwindow(headers):
@@ -189,41 +184,82 @@ def add_newwindow(headers):
     return headers
 
 
-
 def rm_redirect(r):
     r = p.sub(b'', r)
     r = pp.sub(b'', r)
     return r
 
 
-def handle(client, cli_addr):
-    '''处理客户端请求'''
-    log(cli_addr)
+def path_timeout(cache, path):
+    query_time = cache[path]['querytime']
+    now = int(time.time())
+    return now - query_time
 
-    _s = socket.socket()
-    geventsocks.connect(_s, (GOOGLE_HOST, 443))
-    s = ssl.wrap_socket(_s)
 
-    while True:
-        # 获取客户端请求
-        headers = headers_by_conn(client)
-        if not headers or headers['method'] != 'GET':
-            return
-        else:
-            headers = add_newwindow(headers)
-            log(headers)
-            # host, _ = headers['args']['Host'], headers['path']
-            # 发送headers到google
-            r_raw = request(s, headers)
-            r = rm_redirect(r_raw)
-            log('r大小', len(r), r[:1024])
-            client.sendall(r)
-            # s.close()
-            # client.close()
-            break
+def in_cache(cache, path):
+    ttl = 3600
+    if path in cache:
+        return path_timeout(cache, path) <= ttl
+    else:
+        return False
+
+
+def write_cache(cache, path, content):
+    now = int(time.time())
+    cache[path] = dict(
+        content=content,
+        querytime=now,
+    )
+
+
+def modifier_headers(headers):
+    headers = add_newwindow(headers)
+    if headers['args'].get('Cookie'):
+        headers['args']['Cookie'] = ''
+    return headers
+
+
+def handle_func():
+    cache = {}
+
+    def handle(client, cli_addr):
+        '''处理客户端请求'''
+        # log(cli_addr)
+
+        while True:
+            # 获取客户端请求
+            headers = headers_by_conn(client)
+            if not headers or headers['method'] != 'GET':
+                return
+            else:
+                headers = modifier_headers(headers)
+                # log(headers)
+
+                path = headers['path']
+                if in_cache(cache, path):
+                    r = cache[path]['content']
+                    ttl = 3600 - path_timeout(cache, path)
+                    # log('命中缓存')
+                    log(cli_addr,
+                        '[Length: {}]'.format(len(r)),
+                        '[cache ttl: {}]'.format(ttl),
+                        path)
+                else:
+                    # 发送headers到google
+                    s = connect_google()
+                    r_raw = request(s, headers)
+                    r = rm_redirect(r_raw)
+                    write_cache(cache, path, r)
+                    log(cli_addr, '[Length: {}]'.format(len(r)), path)
+
+                # log('r大小', len(r), r[:1024])
+                client.sendall(r)
+                break
+    return handle
 
 
 def main(host, port, ssl_file=None):
+    handle = handle_func()
     if ssl_file:
         certfile, keyfile = ssl_file
         StreamServer((host, port), handle=handle,
