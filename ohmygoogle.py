@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
-from gevent import socket, ssl  # spawn, queue,   # monkey,
+from gevent import socket, ssl, spawn  # , queue,   # monkey,
 import time
 import re
 import json
@@ -12,7 +12,7 @@ import geventsocks
 
 GOOGLE_HOST = 'www.google.com'
 PROXY_ADDR = ('127.0.0.1', 1080)
-
+TTL = 3600
 
 p = re.compile(b'onmousedown="return rwt.+?"')
 pp = re.compile(b'onmousedown.+?return rwt\(.+?\).....')
@@ -196,12 +196,13 @@ def path_timeout(cache, path):
     return now - query_time
 
 
-def in_cache(cache, path):
-    ttl = 3600
-    if path in cache:
-        return path_timeout(cache, path) <= ttl
-    else:
-        return False
+# def in_cache(cache, path):
+#     ttl = 3600
+#     if path in cache:
+#         # return path_timeout(cache, path) <= ttl
+#         return cache[path]
+#     else:
+#         return False
 
 
 def write_cache(cache, path, content):
@@ -219,42 +220,51 @@ def modifier_headers(headers):
     return headers
 
 
+def update_cache(headers, cache):
+    # 发送headers到google
+    s = connect_google()
+    r_raw = request(s, headers)
+    r = rm_redirect(r_raw)
+    path = headers['path']
+    write_cache(cache, path, r)
+    return r
+
+
+def google(headers, cache, cli_addr):
+    headers = modifier_headers(headers)
+    path = headers['path']
+
+    if path in cache:
+        # log('命中缓存')
+        resp = cache[path]['content']
+        timeout = path_timeout(cache, path)
+        if timeout > TTL:
+            spawn(update_cache, headers, cache)
+        log(cli_addr,
+            '[Length: {}]'.format(len(resp)),
+            '[cache ttl: {}]'.format(TTL - timeout),
+            path)
+    else:
+        resp = update_cache(headers, cache)
+        log(cli_addr, '[Length: {}]'.format(len(resp)), path)
+
+    return resp
+
+
 def handle_func():
     cache = {}
 
     def handle(client, cli_addr):
         '''处理客户端请求'''
-        # log(cli_addr)
-
-        while True:
-            # 获取客户端请求
-            headers = headers_by_conn(client)
-            if not headers or headers['method'] != 'GET':
-                return
-            else:
-                headers = modifier_headers(headers)
-                # log(headers)
-
-                path = headers['path']
-                if in_cache(cache, path):
-                    r = cache[path]['content']
-                    ttl = 3600 - path_timeout(cache, path)
-                    # log('命中缓存')
-                    log(cli_addr,
-                        '[Length: {}]'.format(len(r)),
-                        '[cache ttl: {}]'.format(ttl),
-                        path)
-                else:
-                    # 发送headers到google
-                    s = connect_google()
-                    r_raw = request(s, headers)
-                    r = rm_redirect(r_raw)
-                    write_cache(cache, path, r)
-                    log(cli_addr, '[Length: {}]'.format(len(r)), path)
-
-                # log('r大小', len(r), r[:1024])
-                client.sendall(r)
-                break
+        # while True:
+        # 获取客户端请求
+        headers = headers_by_conn(client)
+        if not headers or headers['method'] != 'GET':
+            return
+        else:
+            r = google(headers, cache, cli_addr)
+            client.sendall(r)
+            # break
     return handle
 
 
@@ -269,7 +279,7 @@ def main(host, port, ssl_file=None):
 
 
 if __name__ == '__main__':
-    with open('oh-my-google.json') as f:
+    with open('ohmygoogle.json') as f:
         cfg = json.loads(f.read())
     log(cfg)
     if cfg['proxy']:
