@@ -16,7 +16,7 @@
 > sudo pip3 install -U gevent requests
 
 * Clone oh-my-google:
-> git clone git@github.com:bieberg0n/oh-my-google.git  
+> git clone https://github.com/bieberg0n/oh-my-google.git  
 > cd oh-my-google
 
 * Edit ohmygoogle.json:
