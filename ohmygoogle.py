@@ -227,6 +227,7 @@ def update_cache(headers, cache):
     r = rm_redirect(r_raw)
     path = headers['path']
     write_cache(cache, path, r)
+    log('Update cache.')
     return r
 
 
