@@ -1,2 +1,2 @@
-cp ohmygoogle_example.json ohmygoogle.json
+cp ohmygoogle.json ohmygoogle_example.json
 sudo python3 ohmygoogle.py
