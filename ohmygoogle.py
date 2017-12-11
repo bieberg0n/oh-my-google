@@ -2,6 +2,7 @@
 # coding=utf-8
 
 from gevent import spawn
+from gevent import ssl
 # import time
 import re
 import json
@@ -111,8 +112,13 @@ def main(host, port, ssl_file=None):
     handle = handle_func()
     if ssl_file:
         certfile, keyfile = ssl_file
-        StreamServer((host, port), handle=handle,
-                     keyfile=keyfile, certfile=certfile).serve_forever()
+        StreamServer(
+            (host, port),
+            handle=handle,
+            keyfile=keyfile,
+            certfile=certfile,
+            ssl_version=ssl.PROTOCOL_TLSv1_2
+        ).serve_forever()
     else:
         StreamServer((host, port), handle=handle).serve_forever()
 
