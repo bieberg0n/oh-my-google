@@ -6,11 +6,13 @@ class Cache():
         self.cache = {}
 
     def select(self, path, user_agent):
-        path = self.cache.get(path)
-        if path:
-            return path.get(user_agent)
-        else:
-            return None
+        # path = self.cache.get(path)
+        # if path:
+        #     return path.get(user_agent)
+        # else:
+        #     return None
+        path = self.cache.get(path, {}).get(user_agent)
+        return path
 
     def write(self, path, user_agent, content):
         now = int(time.time())

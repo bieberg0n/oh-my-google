@@ -133,9 +133,12 @@ if __name__ == '__main__':
     with open('ohmygoogle.json') as f:
         cfg = json.loads(f.read())
     log(cfg)
+
     if cfg['proxy']:
         # geventsocks.set_default_proxy(*PROXY_ADDR)
         PROXY_ADDR = ('127.0.0.1', 1080)
+    else:
+        PROXY_ADDR = None
     if cfg['ssl']:
         ssl_file = (cfg['certfile'], cfg['keyfile'])
     else:

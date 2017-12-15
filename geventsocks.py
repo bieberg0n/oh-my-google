@@ -1,6 +1,3 @@
-
-# copyright 2016 bjong
-
 from struct import pack
 from gevent import socket
 
@@ -23,7 +20,7 @@ def valid_ip(address):
 
 
 def connect(sock, addr):
-    sock.connect( (_proxy_dst, _proxy_port) )
+    sock.connect((_proxy_dst, _proxy_port))
     sock.sendall(b'\x05\x01\x00')
     r = sock.recv(512)
     if r == b'\x05\x00':
@@ -41,7 +38,7 @@ def connect(sock, addr):
         len_dst_bytes = pack('B', len(dst_bytes))
         port_bytes = pack('>H', port)
         sock.sendall(b'\x05\x01\x00\x03' + len_dst_bytes + dst_bytes
-                      + port_bytes)
+                     + port_bytes)
 
     r = sock.recv(512)
     if r.startswith(b'\x05\x00'):
