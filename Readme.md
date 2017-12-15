@@ -16,12 +16,14 @@
 > sudo pip3 install -U gevent requests
 
 * Clone oh-my-google:
-> git clone git@github.com:bieberg0n/oh-my-google.git  
+> git clone https://github.com/bieberg0n/oh-my-google.git  
 > cd oh-my-google
 
-* Edit oh-my-google.json;
+* Edit ohmygoogle.json:
+> cp ohmygoogle_example.json ohmygoogle.json  
+> nano ohmygoogle.json
 
-* Run: 
-> sudo python3 oh-my-google.py
+* Run:
+> ./start.sh
 
 PS: You can use Byobu,Supervisor or other ways to background it.
