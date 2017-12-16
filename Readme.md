@@ -24,6 +24,6 @@
 > nano ohmygoogle.json
 
 * Run:
-> ./start.sh
+> sudo ./ohmygoogle.py
 
 PS: You can use Byobu,Supervisor or other ways to background it.
