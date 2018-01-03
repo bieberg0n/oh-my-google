@@ -119,15 +119,20 @@ def response_by_conn(conn):
 
     # 获取body
     transfer_encoding = h['args'].get('Transfer-Encoding')
+    content_length = int(h['args'].get('Content-Length', 0))
     resp_body = b''
     if transfer_encoding == 'chunked':
         resp_body = response_by_chunked(conn)
         sh = sh.replace('chunked', '')
-    else:
-        content_length = int(h['args'].get('Content-Length', 0))
+
+    elif content_length != 0:
         for buf in iter(lambda: conn.recv(1024*16), b''):
             resp_body += buf
             if len(resp_body) >= content_length:
                 break
+
+    else:
+        for buf in iter(lambda: conn.recv(1024*16), b''):
+            resp_body += buf
 
     return sh.encode() + resp_body
