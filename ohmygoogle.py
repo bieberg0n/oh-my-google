@@ -42,6 +42,7 @@ def modifier_headers(headers):
 def request(s, google, headers):
     host = headers['args']['Host']
     headers['args']['Accept-Encoding'] = 'identity'
+    headers['args']['accept-encoding'] = 'identity'
     sh = str_headers(headers)
     req_body = headers.get('body')
     _req_data = sh + req_body if req_body else sh
@@ -100,10 +101,10 @@ def handle_func():
         # 获取客户端请求
         headers = headers_by_conn(client)
         if not headers or headers['method'] != 'GET':
-            return
+            r = b'HTTP/1.1 204 OK\r\n\r\n'
         else:
             r = google(headers, cache, cli_addr)
-            client.sendall(r)
+        client.sendall(r)
             # break
     return handle
 

@@ -1,6 +1,7 @@
 from gevent import socket
 from gevent import ssl
 import geventsocks
+from utils import log
 
 
 def connect(host, proxy=None):
@@ -34,11 +35,13 @@ def headers_by_str(str_headers):
         pass
     for line in headers_lines[1:]:
         if line:
-            # log(line)
-            key, value = line.split(': ')[:2]
-            headers['args'][key] = value
-        else:
-            pass
+            try:
+                key, value = line.split(': ')[:2]
+            except ValueError as e:
+                log(e, line)
+                continue
+            else:
+                headers['args'][key] = value
     return headers
 
 
