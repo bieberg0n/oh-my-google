@@ -6,18 +6,17 @@
 
 ### Depends
 * Python3  
-* gevent  
-* requests
 
 ### Usage
 * Install Python3 and pip;
-
-* Install gevent and requests:
-> sudo pip3 install -U gevent requests
+> sudo apt install python3 python3-pip
 
 * Clone oh-my-google:
 > git clone https://github.com/bieberg0n/oh-my-google.git  
 > cd oh-my-google
+
+* Install requires:
+> sudo pip3 install -U -r requirements.txt
 
 * Edit ohmygoogle.json:
 > cp ohmygoogle_example.json ohmygoogle.json  
