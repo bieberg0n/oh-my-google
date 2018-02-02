@@ -3,15 +3,11 @@
 
 from gevent import spawn
 from gevent import ssl
-# import time
 import re
 import json
 from gevent.server import StreamServer
-# from pprint import pprint
-# import geventsocks
 from utils import log
 from http_utils import connect
-# from http_utils import request
 from http_utils import headers_by_conn
 from http_utils import str_headers
 from http_utils import response_by_conn
@@ -40,14 +36,13 @@ def modifier_headers(headers):
 
 
 def request(s, google, headers):
-    host = headers['args']['Host']
-    headers['args']['Accept-Encoding'] = 'identity'
+    host = headers['args']['host']
     headers['args']['accept-encoding'] = 'identity'
     sh = str_headers(headers)
     req_body = headers.get('body')
     _req_data = sh + req_body if req_body else sh
     req_data = _req_data.replace(host, google)
-    # log('发送 data 给 google'), req_data)
+    # log('发送 data 给 google', req_data)
     s.sendall(req_data.encode())
 
     resp = response_by_conn(s)
@@ -62,34 +57,42 @@ def update_cache(headers, cache):
     r_raw = request(s, GOOGLE_HOST, headers)
     r = rm_redirect(r_raw)
     path = headers.get('path')
-    user_agent = headers['args'].get('User-Agent')
+    user_agent = headers['args'].get('user-agent')
     cache.write(path, user_agent, r)
     log('Update cache.')
     return r
 
 
 def google(headers, cache, cli_addr):
+    spider_bot = ('bot', 'Bot', 'spider', 'Spider')
+
     headers = modifier_headers(headers)
     path = headers['path']
-    user_agent = headers['args'].get('User-Agent')
-    data = cache.select(path, user_agent)
-    # log('ua, data,', user_agent, data)
+    user_agent = headers['args'].get('user-agent', '')
 
-    if data:
-        # log('命中缓存')
-        resp = data['content']
-        timeout = cache.timeout(path, user_agent)
-        if timeout > TTL:
-            spawn(update_cache, headers, cache)
-        log(cli_addr,
-            '[Length: {}]'.format(len(resp)),
-            '[cache ttl: {}]'.format(TTL - timeout),
-            path)
+    if [i for i in spider_bot if i in user_agent]:
+        return b'HTTP/1.1 403 Forbidden\r\n\r\n'
+
     else:
-        resp = update_cache(headers, cache)
-        log(cli_addr, '[Length: {}]'.format(len(resp)), path)
+        data = cache.select(path, user_agent)
+        if data:
+            # log('命中缓存')
+            resp = data['content']
+            timeout = cache.timeout(path, user_agent)
+            if timeout > TTL:
+                spawn(update_cache, headers, cache)
+            log('{} [Length: {}] [cache ttl: {}] {} ({})'.format(
+                    cli_addr,
+                    len(resp),
+                    TTL - timeout,
+                    path,
+                    user_agent))
+        else:
+            resp = update_cache(headers, cache)
+            log('{} [Length: {}] {} ({})'.format(cli_addr, len(resp),
+                                                 path, user_agent))
 
-    return resp
+        return resp
 
 
 def handle_func():
@@ -97,7 +100,6 @@ def handle_func():
 
     def handle(client, cli_addr):
         '''处理客户端请求'''
-        # while True:
         # 获取客户端请求
         headers = headers_by_conn(client)
         if not headers or headers['method'] != 'GET':
@@ -105,7 +107,6 @@ def handle_func():
         else:
             r = google(headers, cache, cli_addr)
         client.sendall(r)
-            # break
     return handle
 
 
@@ -136,7 +137,6 @@ if __name__ == '__main__':
     log(cfg)
 
     if cfg['proxy']:
-        # geventsocks.set_default_proxy(*PROXY_ADDR)
         PROXY_ADDR = ('127.0.0.1', 1080)
     else:
         PROXY_ADDR = None

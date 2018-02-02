@@ -41,7 +41,7 @@ def headers_by_str(str_headers):
                 log(e, line)
                 continue
             else:
-                headers['args'][key] = value
+                headers['args'][key.lower()] = value
     return headers
 
 
@@ -53,7 +53,7 @@ def headers_by_conn(conn):
     else:
         headers = headers_by_str(str_headers)
         if headers['method'] == 'POST':
-            content_len = int(headers['args']['Content-Length'])
+            content_len = int(headers['args']['content-length'])
             current_len = len(str_headers.split('\r\n\r\n')[1])
             need_recv_len = content_len - current_len
             headers['body'] = conn.recv(need_recv_len).decode()
@@ -64,7 +64,7 @@ def str_headers(headers):
     '''header 转成 string 格式'''
     first_line = '{} {} HTTP/1.1\r\n'.format(headers['method'],
                                              headers['path'])
-    other_line = ''.join(['{}: {}\r\n'.format(k, w)
+    other_line = ''.join(['{}: {}\r\n'.format(k.title(), w)
                           for k, w in headers['args'].items()])
     return first_line + other_line + '\r\n'
 
@@ -104,6 +104,7 @@ def response_by_chunked(conn):
         ck_length = chunked_length(conn)
         if ck_length:
             data += recv(conn, ck_length+2)
+            # log(ck_length, len(data))
         else:
             break
     return data
@@ -118,11 +119,11 @@ def response_by_conn(conn):
         sh.append(char)
     sh = ''.join(sh)
     h = headers_by_str(sh)
-    # log('resp headers: ', h['args'])
+    # log('resp headers: ', h)
 
     # 获取body
-    transfer_encoding = h['args'].get('Transfer-Encoding')
-    content_length = int(h['args'].get('Content-Length', 0))
+    transfer_encoding = h['args'].get('transfer-encoding')
+    content_length = int(h['args'].get('content-length', 0))
     resp_body = b''
     if transfer_encoding == 'chunked':
         resp_body = response_by_chunked(conn)
