@@ -1,7 +1,7 @@
 from gevent import socket
 from gevent import ssl
 import geventsocks
-from utils import log
+from utils import log, dbug
 
 
 def connect(host, proxy=None):
@@ -14,25 +14,28 @@ def connect(host, proxy=None):
 
 
 def headers_raw(conn):
-    headers_raw = ''
+    raw = ''
     for buf in iter(lambda: conn.recv(1024), b''):
-        headers_raw += buf.decode('utf-8')
-        if '\r\n\r\n' in headers_raw:
+        raw += buf.decode('utf-8')
+        if '\r\n\r\n' in raw:
             break
-    return headers_raw
+    return raw
 
 
-def headers_by_str(str_headers):
+def headers_by_str(str_headers, is_req=True):
     '''string格式的headers转成dict'''
     headers = dict(
         args={}
     )
     headers_lines = str_headers.split('\r\n')
     headers_head = headers_lines[0].split(' ')
+    headers['head_raw'] = headers_lines[0]
     if len(headers_head) >= 2:
-        headers['method'], headers['path'] = headers_head[:2]
-    else:
-        pass
+        if is_req:
+            headers['method'], headers['path'] = headers_head[:2]
+        else:
+            headers['http_type'], headers['status_code'] = headers_head[:2]
+
     for line in headers_lines[1:]:
         if line:
             try:
@@ -110,6 +113,15 @@ def response_by_chunked(conn):
     return data
 
 
+def make_headers(headers: dict) -> str:
+    headers_list = [headers['head_raw']]
+    headers_body = [k + ': ' + v for k, v in headers['args'].items()]
+    headers_list.extend(headers_body)
+    headers_list.append('\r\n')
+    headers_str = '\r\n'.join(headers_list)
+    return headers_str
+
+
 def response_by_conn(conn):
     '''从 conn 获取 response'''
     # 获取headers
@@ -118,8 +130,9 @@ def response_by_conn(conn):
         char = conn.recv(1).decode()
         sh.append(char)
     sh = ''.join(sh)
-    h = headers_by_str(sh)
-    # log('resp headers: ', h)
+    h = headers_by_str(sh, False)
+    dbug('resp headers: ')
+    dbug(h)
 
     # 获取body
     transfer_encoding = h['args'].get('transfer-encoding')
@@ -127,7 +140,8 @@ def response_by_conn(conn):
     resp_body = b''
     if transfer_encoding == 'chunked':
         resp_body = response_by_chunked(conn)
-        sh = sh.replace('chunked', '')
+        del h['args']['transfer-encoding']
+        h['args']['content-length'] = str(len(resp_body))
 
     elif content_length != 0:
         for buf in iter(lambda: conn.recv(1024*16), b''):
@@ -139,4 +153,4 @@ def response_by_conn(conn):
         for buf in iter(lambda: conn.recv(1024*16), b''):
             resp_body += buf
 
-    return sh.encode() + resp_body
+    return make_headers(h).encode() + resp_body

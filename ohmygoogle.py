@@ -63,14 +63,17 @@ def update_cache(headers, cache):
     return r
 
 
-def google(headers, cache, cli_addr):
+def is_spider_req(user_agent):
     spider_bot = ('bot', 'Bot', 'spider', 'Spider')
+    return [i for i in spider_bot if i in user_agent] != []
 
+
+def google(headers, cache, cli_addr):
     headers = modifier_headers(headers)
     path = headers['path']
     user_agent = headers['args'].get('user-agent', '')
 
-    if [i for i in spider_bot if i in user_agent]:
+    if is_spider_req(user_agent):
         return b'HTTP/1.1 403 Forbidden\r\n\r\n'
 
     else:
