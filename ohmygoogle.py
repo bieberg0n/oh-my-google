@@ -47,7 +47,7 @@ def request(s, google, headers):
 
     resp = response_by_conn(s)
     # log('接收data')
-    resp = resp.replace(google.encode(), '{}'.format(host).encode())
+    resp = resp.replace('https://{}'.format(google).encode(), cfg['url'].encode())
     return resp
 
 
