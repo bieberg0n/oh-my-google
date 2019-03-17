@@ -6,11 +6,17 @@ from gevent import ssl
 import re
 import json
 from gevent.server import StreamServer
-from utils import log
-from http_utils import connect
-from http_utils import headers_by_conn
-from http_utils import str_headers
-from http_utils import response_by_conn
+from utils import (
+    log,
+    dbug,
+)
+from http_utils import (
+    connect,
+    headers_by_conn,
+    str_headers,
+    response_by_conn,
+    make_headers,
+)
 from cache import Cache
 
 
@@ -45,17 +51,24 @@ def request(s, google, headers):
     # log('发送 data 给 google', req_data)
     s.sendall(req_data.encode())
 
-    resp = response_by_conn(s)
     # log('接收data')
-    resp = resp.replace('https://{}'.format(google).encode(), cfg['url'].encode())
+    h, body = response_by_conn(s)
+    body = body.replace('https://{}'.format(google).encode(), cfg['url'].encode())
+    body = rm_redirect(body)
+    h['args']['content-length'] = str(len(body))
+    h_bytes = make_headers(h).encode()
+    dbug('header length:', len(h_bytes))
+    dbug('body length:', len(body))
+
+    resp = h_bytes + body
     return resp
 
 
 def update_cache(headers, cache):
     # 发送headers到google
     s = connect(GOOGLE_HOST, PROXY_ADDR)
-    r_raw = request(s, GOOGLE_HOST, headers)
-    r = rm_redirect(r_raw)
+    r = request(s, GOOGLE_HOST, headers)
+
     path = headers.get('path')
     user_agent = headers['args'].get('user-agent')
     cache.write(path, user_agent, r)

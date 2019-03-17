@@ -122,8 +122,8 @@ def make_headers(headers: dict) -> str:
     return headers_str
 
 
+# 从 conn 获取 response
 def response_by_conn(conn):
-    '''从 conn 获取 response'''
     # 获取headers
     sh = []
     while len(sh) <= 4 or sh[-4:] != ['\r', '\n', '\r', '\n']:
@@ -141,7 +141,6 @@ def response_by_conn(conn):
     if transfer_encoding == 'chunked':
         resp_body = response_by_chunked(conn)
         del h['args']['transfer-encoding']
-        h['args']['content-length'] = str(len(resp_body))
 
     elif content_length != 0:
         for buf in iter(lambda: conn.recv(1024*16), b''):
@@ -153,4 +152,4 @@ def response_by_conn(conn):
         for buf in iter(lambda: conn.recv(1024*16), b''):
             resp_body += buf
 
-    return make_headers(h).encode() + resp_body
+    return h, resp_body
